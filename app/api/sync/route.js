@@ -11,7 +11,8 @@ export async function GET(request) {
     const shouldSync = searchParams.get('sync') === 'true' || searchParams.get('force') === 'true';
 
     if (shouldSync) {
-      const result = await syncWithPncp({ daysBack: 45 });
+      // Coleta otimizada para Serverless (tempo < 5s)
+      const result = await syncWithPncp({ daysBack: 14, maxPages: 2, modalities: [4, 6, 8, 9] });
       return NextResponse.json(result);
     }
 
@@ -31,10 +32,12 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const daysBack = body.daysBack ? parseInt(body.daysBack, 10) : 45;
+    const daysBack = body.daysBack ? parseInt(body.daysBack, 10) : 14;
+    const maxPages = body.maxPages ? parseInt(body.maxPages, 10) : 2;
+    const modalities = body.modalities || [4, 6, 8, 9];
 
-    // Dispara a sincronização
-    const result = await syncWithPncp({ daysBack });
+    // Dispara a sincronização rápida otimizada para limites da Vercel (Serverless < 5s)
+    const result = await syncWithPncp({ daysBack, maxPages, modalities });
 
     return NextResponse.json(result);
   } catch (error) {

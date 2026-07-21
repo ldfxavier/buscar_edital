@@ -84,12 +84,12 @@ export default function Home() {
   // Disparar Sincronização Manual com o PNCP
   const handleManualSync = async () => {
     setSyncing(true);
-    setSyncMessage('Sincronizando com a API do PNCP em segundo plano...');
+    setSyncMessage('Coletando novos editais em segundo plano...');
     try {
       const res = await fetch('/api/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ daysBack: 45 })
+        body: JSON.stringify({ daysBack: 14, maxPages: 2 })
       });
       const data = await res.json();
       if (data.message) setSyncMessage(data.message);
