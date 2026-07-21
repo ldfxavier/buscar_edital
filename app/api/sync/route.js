@@ -2,11 +2,19 @@ import { NextResponse } from 'next/server';
 import { getStoreMetaData } from '../../../lib/storage';
 import { syncWithPncp, initPeriodicSync } from '../../../lib/sync';
 
-// Garante a inicialização do agendador em background ao primeiro acesso à rota
+// Garante a inicialização do agendador em background
 initPeriodicSync(30);
 
-export async function GET() {
+export async function GET(request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const shouldSync = searchParams.get('sync') === 'true' || searchParams.get('force') === 'true';
+
+    if (shouldSync) {
+      const result = await syncWithPncp({ daysBack: 45 });
+      return NextResponse.json(result);
+    }
+
     const meta = await getStoreMetaData();
     return NextResponse.json({
       success: true,
