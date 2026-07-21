@@ -91,13 +91,28 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ daysBack: 14, maxPages: 2 })
       });
-      const data = await res.json();
+
+      if (res.status === 401) {
+        alert('Sessão expirada. Por favor, faça login novamente no portal.');
+        window.location.href = '/login';
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        const errorText = data.message || data.error || `Erro HTTP ${res.status}`;
+        setSyncMessage(`Erro: ${errorText}`);
+        alert(`Erro na coleta: ${errorText}`);
+        return;
+      }
+
       if (data.message) setSyncMessage(data.message);
       await fetchSyncStatus();
       await fetchBids();
     } catch (e) {
       console.error('Erro ao disparar sincronização:', e);
-      setSyncMessage('Erro na sincronização manual.');
+      setSyncMessage('Erro na conexão para sincronização.');
+      alert(`Erro na sincronização: ${e.message}`);
     } finally {
       setSyncing(false);
     }
