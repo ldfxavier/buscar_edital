@@ -24,10 +24,19 @@ const UF_LIST = [
 ];
 
 const MODALIDADE_NAMES = {
+  1: 'Leilão Eletrônico',
+  2: 'Diálogo Competitivo',
+  3: 'Concurso',
   4: 'Concorrência Eletrônica',
+  5: 'Concorrência Presencial',
   6: 'Pregão Eletrônico',
+  7: 'Pregão Presencial',
   8: 'Dispensa de Licitação',
-  9: 'Inexigibilidade'
+  9: 'Inexigibilidade',
+  10: 'Manifestação de Interesse',
+  11: 'Pré-qualificação',
+  12: 'Credenciamento',
+  13: 'Cotação Eletrônica'
 };
 
 export default function Home() {
@@ -40,7 +49,7 @@ export default function Home() {
   const [uf, setUf] = useState('');
   const [valorMinimo, setValorMinimo] = useState('');
   const [valorMaximo, setValorMaximo] = useState('');
-  const [modalidades, setModalidades] = useState([4, 6, 8, 9]);
+  const [modalidades, setModalidades] = useState([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
 
   // Custom Keywords & Favorites
   const [keywords, setKeywords] = useState([]);

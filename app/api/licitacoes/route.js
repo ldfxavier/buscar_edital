@@ -5,64 +5,62 @@ import { syncWithPncp, initPeriodicSync } from '../../../lib/sync';
 // Garante o agendador em background
 initPeriodicSync(30);
 
+// Palavras-chave mestre para busca de TI (Cobrem software, hardware, peças, redes, suporte, licenças e serviços)
 const DEFAULT_TECH_KEYWORDS = [
-  'software',
-  'desenvolvimento de software', 'desenvolvimento de sistemas', 'desenvolvimento web', 'desenvolvimento de app', 'desenvolvimento de aplicativo',
-  'aluguel de software', 'locação de software', 'licenciamento de software', 'licenciamento de uso', 'licença de uso', 'direito de uso de software', 'cessão de direito de uso',
-  'instalação de software', 'implantação de software', 'customização de software', 'suporte de software', 'manutenção de software',
-  'sistema informatizado', 'sistema de informação', 'sistema de gestão', 'sistema web', 'sistema de TI',
+  'software', 'softwares',
+  'desenvolvimento de software', 'desenvolvimento de sistemas', 'desenvolvimento de sistema', 'desenvolvimento web',
+  'desenvolvimento de app', 'desenvolvimento de aplicativo', 'criação de software', 'criacao de software', 'desenvolvimento de portal', 'desenvolvimento de site',
+  'aluguel de software', 'locação de software', 'licenciamento de software', 'licenciamento de uso', 'licença de uso', 'licenca de uso', 'direito de uso de software', 'cessão de direito de uso',
+  'instalação de software', 'instalacao de software', 'instalação de sistema', 'instalacao de sistema', 'instalação de equipamentos de informática',
+  'implantação de software', 'implantacao de software', 'customização de software', 'suporte de software', 'manutenção de software',
+  'manutenção de computadores', 'manutencao de computadores', 'manutenção de equipamentos de informática', 'assistência técnica em informática', 'assistencia tecnica em informatica',
+  'sistema informatizado', 'sistema de informação', 'sistema de informacao', 'sistema de gestão', 'sistema de gestao', 'sistema web', 'sistema de ti',
   'plataforma digital', 'plataforma web', 'plataforma saas', 'plataforma de software', 'plataforma virtual',
-  'fábrica de software', 'aplicativo', 'app', 'mobile', 'banco de dados', 'cloud', 'nuvem', 'saas', 'erp', 'crm', 'chatbot',
-  'tecnologia da informação', 'tecnologia de informação', 'ti', 'suporte de ti', 'consultoria em ti',
-  'computador', 'notebook', 'ultrabook', 'chromebook', 'servidor de rede', 'servidores de rede', 'servidor de banco de dados', 'roteador', 'switch', 'conectividade',
+  'fábrica de software', 'fabrica de software', 'aplicativo', 'app', 'mobile', 'banco de dados', 'cloud', 'nuvem', 'saas', 'erp', 'crm', 'chatbot',
+  'tecnologia da informação', 'tecnologia da informacao', 'tecnologia de informação', 'tecnologia de informacao', 'ti', 'suporte de ti', 'consultoria em ti', 'infraestrutura de ti',
+  'computador', 'computadores', 'microcomputador', 'microcomputadores', 'notebook', 'notebooks', 'ultrabook', 'chromebook', 'desktop', 'gabinete', 'processador', 'memoria ram', 'memória ram', 'disco ssd', 'hd externo', 'placa mae', 'placa mãe', 'fonte de alimentação', 'periféricos', 'peças de computador', 'pecas de computador', 'equipamento de informática', 'equipamentos de informática', 'equipamento de informatica', 'equipamentos de informatica', 'impressora', 'impressoras', 'multifuncional', 'nobreak', 'nobreaks', 'estabilizador', 'teclado', 'mouse', 'monitor', 'monitores',
+  'servidor de rede', 'servidores de rede', 'servidor de banco de dados', 'roteador', 'switch', 'conectividade', 'rack de ti', 'patch panel',
   'link de internet', 'serviço de internet', 'conexão à internet', 'acesso à internet', 'provedor de internet', 'antena de internet',
-  'link dedicado', 'link de dados', 'fibra óptica', 'telefonia voip', 'telefonia ip',
-  'rede de computadores', 'rede de dados', 'rede lógica', 'rede wi-fi', 'rede sem fio', 'infraestrutura de rede'
+  'link dedicado', 'link de dados', 'fibra óptica', 'fibra optica', 'telefonia voip', 'telefonia ip',
+  'rede de computadores', 'rede de dados', 'rede lógica', 'rede wi-fi', 'rede sem fio', 'infraestrutura de rede', 'cabeamento estruturado'
 ];
 
+// Palavras de exclusão específicas (Apenas obras civis ou eventos sem TI)
 const DEFAULT_EXCLUSION_KEYWORDS = [
-  'drenagem pluvial', 'pavimentação', 'recapeamento', 'esgotamento sanitário',
-  'obra de engenharia', 'obras de engenharia', 'reforma predial', 'reforma de prédio',
-  'combate a incêndio', 'troca de telhas', 'pintura predial', 'sonorização',
-  'concreto', 'cimento', 'abastecimento de água', 'areia', 'brita', 'tijolo',
-  'calçada', 'asfalto', 'meio-fio', 'parada de ônibus',
-  'locação de imóvel', 'aluguel de imóvel', 'locação de prédio', 'aluguel de prédio', 'locação de salas', 'aluguel de salas', 'locação de imóvel urbano'
+  'drenagem pluvial', 'pavimentação de asfalto', 'recapeamento asfáltico', 'esgotamento sanitário',
+  'obras de terraplanagem', 'combate a incêndio predial', 'troca de telhas', 'pintura predial',
+  'abastecimento de água tratada', 'parada de ônibus', 'locação de imóvel urbano', 'aluguel de prédio administrativo',
+  'show do cantor', 'cantor e seus teclados', 'revisão mecânica de veículo'
 ];
+
+// Helper para normalizar acentos e caixa de texto
+const normalizeText = (str) => (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+// Limpa formatação e tags de metadados dos portais
+const cleanText = (text) => {
+  if (!text) return '';
+  return text
+    .replace(/\[portal de compras públicas\]/gi, ' ')
+    .replace(/https?:\/\/\S+/gi, ' ');
+};
 
 function matchKeyword(text, keyword) {
-  const cleanKeyword = keyword.trim().toLowerCase();
-  if (!cleanKeyword) return false;
+  const normText = normalizeText(text);
+  const normKw = normalizeText(keyword);
+  if (!normKw || !normText) return false;
 
-  let root = cleanKeyword;
-  let suffix = '';
-  const acronyms = ['saas', 'iaas', 'paas', 'erp', 'crm', 'ti', 'app'];
-
-  if (acronyms.includes(cleanKeyword)) {
-    root = cleanKeyword;
-    suffix = 's?';
-  } else if (cleanKeyword.endsWith('es') && cleanKeyword.length > 4) {
-    root = cleanKeyword.slice(0, -2);
-    suffix = '(es)?';
-  } else if (cleanKeyword.endsWith('s') && cleanKeyword.length > 3) {
-    root = cleanKeyword.slice(0, -1);
-    suffix = 's?';
-  } else {
-    if (cleanKeyword.endsWith('r') || cleanKeyword.endsWith('z') || cleanKeyword.endsWith('l')) {
-      suffix = '(es)?';
-    } else {
-      suffix = 's?';
-    }
+  // Palavras curtas (ex: ti, app, pc) usam regex de limites de palavra inteira
+  if (normKw.length <= 3) {
+    const reg = new RegExp(`\\b${normKw}\\b`, 'i');
+    return reg.test(normText);
   }
 
-  const wordBoundaryTerms = ['ti', 'app', 'saas', 'erp', 'crm', 'link', 'rede', 'computador', 'notebook', 'servidor', 'switch', 'hub', 'tv'];
-  
-  if (cleanKeyword.length <= 4 || wordBoundaryTerms.some(term => cleanKeyword.includes(term))) {
-    const escapedRoot = root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`\\b${escapedRoot}${suffix}\\b`, 'i');
-    return regex.test(text);
-  }
+  // Desconsidera falsos positivos isolados como "gabinete do prefeito" ou "conselho regional de medicina (crm)"
+  if (normKw === 'gabinete' && normText.includes('gabinete do prefeito') && !normText.includes('computador')) return false;
+  if (normKw === 'crm' && normText.includes('crm-') && !normText.includes('software')) return false;
+  if (normKw === 'teclado' && (normText.includes('cantor') || normText.includes('show')) && !normText.includes('computador')) return false;
 
-  return text.toLowerCase().includes(root);
+  return normText.includes(normKw);
 }
 
 function parseYmdDate(dateStr) {
@@ -88,18 +86,18 @@ export async function GET(request) {
   const valorMinimo = searchParams.get('valorMinimo') ? parseFloat(searchParams.get('valorMinimo')) : null;
   const valorMaximo = searchParams.get('valorMaximo') ? parseFloat(searchParams.get('valorMaximo')) : null;
   const pagina = parseInt(searchParams.get('pagina') || '1', 10);
-  const tamanhoPagina = Math.min(Math.max(parseInt(searchParams.get('tamanhoPagina') || '20', 10), 10), 50);
+  const tamanhoPagina = Math.min(Math.max(parseInt(searchParams.get('tamanhoPagina') || '20', 10), 10), 100);
   
-  // Modalidades
+  // Modalidades (Se nenhuma for especificada, engloba TODAS as 13 modalidades por padrão)
   const modalidadesRaw = searchParams.get('modalidades');
   const modalidades = modalidadesRaw 
     ? modalidadesRaw.split(',').map(m => parseInt(m, 10)) 
-    : [4, 6, 8, 9];
+    : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 
   // Palavras-chave
   const palavrasChaveParam = searchParams.get('palavrasChave');
   const keywords = palavrasChaveParam 
-    ? palavrasChaveParam.split(',').map(k => k.trim().toLowerCase()).filter(Boolean)
+    ? palavrasChaveParam.split(',').map(k => k.trim()).filter(Boolean)
     : DEFAULT_TECH_KEYWORDS;
 
   // Ler a base de dados (Redis em nuvem ou Arquivo JSON Local)
@@ -122,12 +120,6 @@ export async function GET(request) {
   // Parâmetro para ignorar palavras-chave (buscar em todos os editais brutos)
   const ignorarPalavrasChave = searchParams.get('ignorarPalavrasChave') === 'true';
 
-  // Helper para limpar links e texto
-  const cleanText = (text) => {
-    if (!text) return '';
-    return text.replace(/https?:\/\/\S+/gi, ' ');
-  };
-
   // Filtragem estritamente LOCAL sobre a base salva
   const filteredBids = rawBids.filter(bid => {
     // 1. Filtro de Modalidade
@@ -136,7 +128,7 @@ export async function GET(request) {
     }
 
     // 2. Filtro de UF
-    if (uf && uf !== 'TODOS') {
+    if (uf && uf !== 'TODOS' && uf !== 'BRASIL (TODOS)') {
       const bidUf = bid.unidadeOrgao?.ufSigla?.toUpperCase();
       if (bidUf !== uf) return false;
     }
@@ -160,101 +152,30 @@ export async function GET(request) {
       return true;
     }
 
-    // 5. Filtro de Exclusões (Palavras Negativas)
-    const objeto = cleanText(bid.objetoCompra).toLowerCase();
-    const info = cleanText(bid.informacaoComplementar).toLowerCase();
+    // 5. Filtro de Exclusões (Palavras Negativas Específicas)
+    const objeto = cleanText(bid.objetoCompra);
+    const info = cleanText(bid.informacaoComplementar);
+    const fullText = objeto + ' ' + info;
     
     const hasExclusion = DEFAULT_EXCLUSION_KEYWORDS.some(exc => 
-      objeto.includes(exc) || info.includes(exc)
+      matchKeyword(fullText, exc)
     );
     if (hasExclusion) return false;
 
-    // 6. Filtro de Palavras-Chave de TI
+    // 6. Filtro de Palavras-Chave de TI (Normalizado e Tolerante)
     const hasMatch = keywords.some(keyword => 
-      matchKeyword(objeto, keyword) || 
-      matchKeyword(info, keyword)
+      matchKeyword(fullText, keyword)
     );
 
     return hasMatch;
   });
 
-  // Classificação opcional por IA (Gemini) se solicitada pelo frontend (apenas se não estiver ignorando palavras-chave)
-  let aiFilteredBids = filteredBids;
-  const filtrarPorIA = searchParams.get('filtrarPorIA') === 'true';
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-
-  if (!ignorarPalavrasChave && filtrarPorIA && apiKey && filteredBids.length > 0) {
-    try {
-      const itemsToClassify = filteredBids.map((bid, index) => ({
-        index,
-        objeto: cleanText(bid.objetoCompra).substring(0, 500),
-        informacao: cleanText(bid.informacaoComplementar).substring(0, 300)
-      }));
-
-      const prompt = `
-Você é um classificador especializado em licitações públicas na área de Tecnologia da Informação (TI).
-Analise cada um dos itens abaixo e determine se ele é diretamente da área de TI (true) ou não (false).
-
-Critérios de inclusão (TI):
-- Licenciamento, aluguel, assinatura, assinatura SaaS ou direito de uso de software/sistemas/plataformas.
-- Desenvolvimento de software, desenvolvimento de sistemas, desenvolvimento web, aplicativos (mobile/web), sites, portais ou sistemas de informação.
-- Serviços de suporte técnico de informática, consultoria em TI, manutenção de software/banco de dados, ou hospedagem em nuvem (SaaS/Cloud/VPS).
-- Aquisição de computadores, notebooks, servidores de rede, roteadores, switches, ou cabeamento lógico/estruturado de redes (informática).
-- Links de internet dedicada, serviços de conectividade ou telefonia IP/VoIP.
-
-Critérios de exclusão (Não é TI):
-- Shows artísticos, palcos, apresentações artísticas, bandas de música ou eventos festivos.
-- Locação de prédios, salas, casas ou imóveis comerciais.
-- Obras civis, reformas, construção, pavimentação, cimento, concreto, esgoto ou encanamento.
-- Equipamentos elétricos gerais (ar condicionado, geradores) ou projetos fotovoltaicos de painéis solares.
-- Cursos ou treinamentos administrativos gerais.
-
-Itens para classificar:
-${JSON.stringify(itemsToClassify, null, 2)}
-
-Responda estritamente em formato JSON estruturado com o seguinte schema exato:
-{
-  "classificacoes": [
-    { "index": 0, "isTI": true }
-  ]
-}
-`;
-
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: 'application/json' }
-        })
-      });
-
-      if (response.ok) {
-        const responseJson = await response.json();
-        if (responseJson && responseJson.candidates && responseJson.candidates[0]?.content?.parts[0]?.text) {
-          const text = responseJson.candidates[0].content.parts[0].text;
-          const parsed = JSON.parse(text);
-          if (parsed && Array.isArray(parsed.classificacoes)) {
-            aiFilteredBids = filteredBids.filter((bid, index) => {
-              const classification = parsed.classificacoes.find(c => c.index === index);
-              return classification ? classification.isTI : true;
-            });
-          }
-        }
-      }
-    } catch (aiError) {
-      console.error('Erro na classificação por IA (fallback para base local ativo):', aiError);
-    }
-  }
-
-  // Ordenar os mais recentes primeiro
-  const sortedBids = aiFilteredBids.sort((a, b) => {
+  const sortedBids = [...filteredBids].sort((a, b) => {
     const dateA = new Date(a.dataPublicacaoPncp || 0);
     const dateB = new Date(b.dataPublicacaoPncp || 0);
     return dateB - dateA;
   });
 
-  // Paginação dos resultados locais
   const totalEncontrados = sortedBids.length;
   const startIndex = (pagina - 1) * tamanhoPagina;
   const paginatedBids = sortedBids.slice(startIndex, startIndex + tamanhoPagina);
