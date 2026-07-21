@@ -119,6 +119,9 @@ export async function GET(request) {
   const endDate = parseYmdDate(dataFinalParam);
   if (endDate) endDate.setHours(23, 59, 59, 999);
 
+  // Parâmetro para ignorar palavras-chave (buscar em todos os editais brutos)
+  const ignorarPalavrasChave = searchParams.get('ignorarPalavrasChave') === 'true';
+
   // Helper para limpar links e texto
   const cleanText = (text) => {
     if (!text) return '';
@@ -152,6 +155,11 @@ export async function GET(request) {
     if (valorMinimo !== null && valor < valorMinimo) return false;
     if (valorMaximo !== null && valor > valorMaximo) return false;
 
+    // Se a opção de ignorar palavras-chave estiver ativa, retorna todos os editais que baterem com os filtros básicos acima
+    if (ignorarPalavrasChave) {
+      return true;
+    }
+
     // 5. Filtro de Exclusões (Palavras Negativas)
     const objeto = cleanText(bid.objetoCompra).toLowerCase();
     const info = cleanText(bid.informacaoComplementar).toLowerCase();
@@ -170,12 +178,12 @@ export async function GET(request) {
     return hasMatch;
   });
 
-  // Classificação opcional por IA (Gemini) se solicitada pelo frontend
+  // Classificação opcional por IA (Gemini) se solicitada pelo frontend (apenas se não estiver ignorando palavras-chave)
   let aiFilteredBids = filteredBids;
   const filtrarPorIA = searchParams.get('filtrarPorIA') === 'true';
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
-  if (filtrarPorIA && apiKey && filteredBids.length > 0) {
+  if (!ignorarPalavrasChave && filtrarPorIA && apiKey && filteredBids.length > 0) {
     try {
       const itemsToClassify = filteredBids.map((bid, index) => ({
         index,
@@ -260,6 +268,7 @@ Responda estritamente em formato JSON estruturado com o seguinte schema exato:
       palavrasChaveUtilizadas: keywords,
       totalEncontrados: totalEncontrados,
       totalSalvosLocal: storeData.totalBids,
+      totalAntesFiltros: storeData.totalBids,
       lastSync: storeData.lastSync,
       lastSyncStatus: storeData.lastSyncStatus,
       lastSyncMessage: storeData.lastSyncMessage,
@@ -270,6 +279,7 @@ Responda estritamente em formato JSON estruturado com o seguinte schema exato:
     },
     results: paginatedBids.map(bid => ({
       numeroControlePNCP: bid.numeroControlePNCP,
+      canalOrigem: bid.canalOrigem || 'PNCP Nacional',
       anoCompra: bid.anoCompra,
       sequencialCompra: bid.sequencialCompra,
       modalidadeId: bid.modalidadeId,

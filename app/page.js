@@ -47,6 +47,7 @@ export default function Home() {
   const [newKeyword, setNewKeyword] = useState('');
   const [favorites, setFavorites] = useState([]);
   const [filtrarPorIA, setFiltrarPorIA] = useState(false);
+  const [ignorarPalavrasChave, setIgnorarPalavrasChave] = useState(false);
 
   // Sync / Base Local States
   const [syncMeta, setSyncMeta] = useState(null);
@@ -56,6 +57,11 @@ export default function Home() {
   const handleIAToggle = (val) => {
     setFiltrarPorIA(val);
     localStorage.setItem('xmcode_filtrar_por_ia', val.toString());
+  };
+
+  const handleIgnorarKeywordsToggle = (val) => {
+    setIgnorarPalavrasChave(val);
+    localStorage.setItem('xmcode_ignorar_keywords', val.toString());
   };
 
   // Consultar Status da Base Local
@@ -180,11 +186,17 @@ export default function Home() {
     if (savedIA) {
       setFiltrarPorIA(savedIA === 'true');
     }
+
+    // Load ignorar palavras-chave preference from localStorage
+    const savedIgnorar = localStorage.getItem('xmcode_ignorar_keywords');
+    if (savedIgnorar) {
+      setIgnorarPalavrasChave(savedIgnorar === 'true');
+    }
   }, []);
 
   // Fetch Bids from Next.js API Proxy
   const fetchBids = useCallback(async () => {
-    if (keywords.length === 0) return;
+    if (!ignorarPalavrasChave && keywords.length === 0) return;
 
     setLoading(true);
     setError(null);
@@ -203,6 +215,7 @@ export default function Home() {
       if (valorMinimo) queryParams.append('valorMinimo', valorMinimo);
       if (valorMaximo) queryParams.append('valorMaximo', valorMaximo);
       if (filtrarPorIA) queryParams.append('filtrarPorIA', 'true');
+      if (ignorarPalavrasChave) queryParams.append('ignorarPalavrasChave', 'true');
 
       const response = await fetch(`/api/licitacoes?${queryParams.toString()}`);
       if (!response.ok) {
@@ -218,14 +231,14 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [dataInicial, dataFinal, modalidades, keywords, uf, valorMinimo, valorMaximo, filtrarPorIA]);
+  }, [dataInicial, dataFinal, modalidades, keywords, uf, valorMinimo, valorMaximo, filtrarPorIA, ignorarPalavrasChave]);
 
-  // Fetch on mount or when keywords are loaded (only once initial values are set)
+  // Fetch on mount or when keywords are loaded
   useEffect(() => {
-    if (keywords.length > 0 && dataInicial && dataFinal) {
+    if ((keywords.length > 0 || ignorarPalavrasChave) && dataInicial && dataFinal) {
       fetchBids();
     }
-  }, [keywords, fetchBids, dataInicial, dataFinal]);
+  }, [keywords, fetchBids, dataInicial, dataFinal, ignorarPalavrasChave]);
 
   // Handle Keyword Add / Remove / Reset
   const handleAddKeyword = (e) => {
@@ -358,7 +371,7 @@ export default function Home() {
             <span style={{
               fontWeight: '800',
               letterSpacing: '1.5px',
-              background: 'linear-gradient(135deg, #10b981 0%, #05ffd1 100%)',
+              background: 'linear-gradient(135deg, #6366f1 0%, #38bdf8 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               fontFamily: 'var(--font-display)'
@@ -378,7 +391,7 @@ export default function Home() {
               <span className={syncing ? "spin-icon" : "pulse-dot"}>
                 {syncing ? "⚙" : ""}
               </span>
-              {syncing ? "Sincronizando..." : "Base Local Ativa"}
+              {syncing ? "Coletando Multicanal..." : "Coletor Multicanal Ativo"}
             </span>
             <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600 }}>
               {syncMeta?.totalBids ?? meta?.totalSalvosLocal ?? 0} salvos
@@ -396,12 +409,12 @@ export default function Home() {
             className="btn-sync" 
             onClick={handleManualSync}
             disabled={syncing}
-            title="Buscar novos editais no PNCP e atualizar base local salva"
+            title="Coletar novos editais em múltiplos canais do PNCP e atualizar base local"
           >
             <svg className={syncing ? "spin-icon" : ""} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
             </svg>
-            {syncing ? 'Atualizando...' : 'Sincronizar Agora'}
+            {syncing ? 'Atualizando...' : 'Coletar Agora'}
           </button>
         </div>
 
@@ -416,6 +429,23 @@ export default function Home() {
               type="checkbox"
               checked={filtrarPorIA}
               onChange={(e) => handleIAToggle(e.target.checked)}
+              disabled={ignorarPalavrasChave}
+            />
+            <span className="slider"></span>
+          </label>
+        </div>
+
+        {/* Ignorar Palavras-Chave Toggle Switch */}
+        <div className="switch-container">
+          <div className="switch-label">
+            <span className="switch-title">Buscar Todos</span>
+            <span className="switch-desc">Ignorar palavras-chave e IA</span>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={ignorarPalavrasChave}
+              onChange={(e) => handleIgnorarKeywordsToggle(e.target.checked)}
             />
             <span className="slider"></span>
           </label>
@@ -425,7 +455,7 @@ export default function Home() {
           <button
             className={`btn-secondary ${activeTab === 'buscar' ? 'active-tab' : ''}`}
             onClick={() => setActiveTab('buscar')}
-            style={{ width: '100%', justifyContent: 'flex-start', background: activeTab === 'buscar' ? 'rgba(16, 185, 129, 0.1)' : 'transparent', borderColor: activeTab === 'buscar' ? 'var(--color-primary)' : 'transparent' }}
+            style={{ width: '100%', justifyContent: 'flex-start', background: activeTab === 'buscar' ? 'rgba(99, 102, 241, 0.12)' : 'transparent', borderColor: activeTab === 'buscar' ? 'var(--color-primary)' : 'transparent' }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -436,7 +466,7 @@ export default function Home() {
           <button
             className={`btn-secondary ${activeTab === 'favoritos' ? 'active-tab' : ''}`}
             onClick={() => setActiveTab('favoritos')}
-            style={{ width: '100%', justifyContent: 'flex-start', background: activeTab === 'favoritos' ? 'rgba(16, 185, 129, 0.1)' : 'transparent', borderColor: activeTab === 'favoritos' ? 'var(--color-primary)' : 'transparent' }}
+            style={{ width: '100%', justifyContent: 'flex-start', background: activeTab === 'favoritos' ? 'rgba(99, 102, 241, 0.12)' : 'transparent', borderColor: activeTab === 'favoritos' ? 'var(--color-primary)' : 'transparent' }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill={activeTab === 'favoritos' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
@@ -447,12 +477,28 @@ export default function Home() {
           <button
             className={`btn-secondary ${activeTab === 'config' ? 'active-tab' : ''}`}
             onClick={() => setActiveTab('config')}
-            style={{ width: '100%', justifyContent: 'flex-start', background: activeTab === 'config' ? 'rgba(16, 185, 129, 0.1)' : 'transparent', borderColor: activeTab === 'config' ? 'var(--color-primary)' : 'transparent' }}
+            style={{ width: '100%', justifyContent: 'flex-start', background: activeTab === 'config' ? 'rgba(99, 102, 241, 0.12)' : 'transparent', borderColor: activeTab === 'config' ? 'var(--color-primary)' : 'transparent' }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 20h9M3 20v-8a2 2 0 0 1 2-2h4M3 12h18M3 8V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2" />
             </svg>
             Palavras-Chave ({keywords.length})
+          </button>
+
+          <button
+            className="btn-secondary"
+            onClick={async () => {
+              try {
+                await fetch('/api/auth/logout', { method: 'POST' });
+              } catch (e) {}
+              window.location.href = '/login';
+            }}
+            style={{ width: '100%', justifyContent: 'flex-start', color: 'var(--color-danger)', borderColor: 'rgba(239, 68, 68, 0.2)', marginTop: 'auto' }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            Sair do Sistema
           </button>
         </nav>
 
@@ -462,8 +508,8 @@ export default function Home() {
             <p style={{ color: 'var(--text-muted)', marginBottom: '8px' }}>Estatísticas da Busca</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Total de Licitações:</span>
-                <span className="badge badge-cyan">{meta.totalAntesFiltros}</span>
+                <span>Total na Base Local:</span>
+                <span className="badge badge-cyan">{meta.totalSalvosLocal ?? meta.totalAntesFiltros ?? 0}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Relevantes p/ TI:</span>
@@ -732,9 +778,14 @@ export default function Home() {
                             {bid.dataAberturaProposta ? formatDateString(bid.dataAberturaProposta) : 'Não informada'}
                           </td>
                           <td>
-                            <span className="badge badge-cyan" style={{ fontSize: '0.7rem' }}>
-                              {bid.modalidadeNome?.split(' ')[0] || 'Outra'}
-                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <span className="badge badge-cyan" style={{ fontSize: '0.7rem' }}>
+                                {bid.modalidadeNome?.split(' ')[0] || 'Outra'}
+                              </span>
+                              <span className="badge badge-indigo" style={{ fontSize: '0.65rem' }}>
+                                {bid.canalOrigem || 'PNCP Nacional'}
+                              </span>
+                            </div>
                           </td>
                         </tr>
                       );
