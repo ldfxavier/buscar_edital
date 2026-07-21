@@ -84,6 +84,9 @@ export default function Home() {
           setSyncing(Boolean(data.meta.isSyncing));
           if (data.meta.lastSyncMessage) setSyncMessage(data.meta.lastSyncMessage);
         }
+        if (data.envCheck && data.envCheck.isVercel && !data.envCheck.hasRedisUrl) {
+          setSyncMessage('⚠️ Variáveis do Upstash Redis ausentes no painel da Vercel.');
+        }
       }
     } catch (e) {
       console.error('Erro ao consultar status de sincronização:', e);
