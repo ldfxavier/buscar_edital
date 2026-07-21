@@ -48,10 +48,64 @@ export default function Home() {
   const [favorites, setFavorites] = useState([]);
   const [filtrarPorIA, setFiltrarPorIA] = useState(false);
 
+  // Sync / Base Local States
+  const [syncMeta, setSyncMeta] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
+
   const handleIAToggle = (val) => {
     setFiltrarPorIA(val);
     localStorage.setItem('xmcode_filtrar_por_ia', val.toString());
   };
+
+  // Consultar Status da Base Local
+  const fetchSyncStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/sync');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.meta) {
+          setSyncMeta(data.meta);
+          setSyncing(Boolean(data.meta.isSyncing));
+          if (data.meta.lastSyncMessage) setSyncMessage(data.meta.lastSyncMessage);
+        }
+      }
+    } catch (e) {
+      console.error('Erro ao consultar status de sincronização:', e);
+    }
+  }, []);
+
+  // Disparar Sincronização Manual com o PNCP
+  const handleManualSync = async () => {
+    setSyncing(true);
+    setSyncMessage('Sincronizando com a API do PNCP em segundo plano...');
+    try {
+      const res = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ daysBack: 45 })
+      });
+      const data = await res.json();
+      if (data.message) setSyncMessage(data.message);
+      await fetchSyncStatus();
+      await fetchBids();
+    } catch (e) {
+      console.error('Erro ao disparar sincronização:', e);
+      setSyncMessage('Erro na sincronização manual.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Monitorar periodicamente o status da sincronização
+  useEffect(() => {
+    fetchSyncStatus();
+    const interval = setInterval(() => {
+      fetchSyncStatus();
+    }, syncing ? 3000 : 15000);
+    return () => clearInterval(interval);
+  }, [fetchSyncStatus, syncing]);
+
 
   // API States
   const [bids, setBids] = useState([]);
@@ -315,6 +369,40 @@ export default function Home() {
           <p style={{ color: 'var(--text-muted)', fontSize: '0.68rem', letterSpacing: '0.2px', fontWeight: 500 }}>
             Conectando ideias. Entregando soluções
           </p>
+        </div>
+
+        {/* Base Local & Sync Card */}
+        <div className="sync-card">
+          <div className="sync-header">
+            <span className="sync-status-badge">
+              <span className={syncing ? "spin-icon" : "pulse-dot"}>
+                {syncing ? "⚙" : ""}
+              </span>
+              {syncing ? "Sincronizando..." : "Base Local Ativa"}
+            </span>
+            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              {syncMeta?.totalBids ?? meta?.totalSalvosLocal ?? 0} salvos
+            </span>
+          </div>
+
+          <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+            Última atualização PNCP:<br/>
+            <strong style={{ color: 'var(--text-primary)' }}>
+              {syncMeta?.lastSync ? new Date(syncMeta.lastSync).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Pendente'}
+            </strong>
+          </div>
+
+          <button 
+            className="btn-sync" 
+            onClick={handleManualSync}
+            disabled={syncing}
+            title="Buscar novos editais no PNCP e atualizar base local salva"
+          >
+            <svg className={syncing ? "spin-icon" : ""} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+            </svg>
+            {syncing ? 'Atualizando...' : 'Sincronizar Agora'}
+          </button>
         </div>
 
         {/* IA Toggle Switch */}

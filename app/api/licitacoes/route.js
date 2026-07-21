@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
-import * as cache from '../../../lib/cache';
+import { readStore } from '../../../lib/storage';
+import { syncWithPncp, initPeriodicSync } from '../../../lib/sync';
 
-const PNCP_CONSULTA_BASE = 'https://pncp.gov.br/api/consulta/v1';
+// Garante o agendador em background
+initPeriodicSync(30);
 
 const DEFAULT_TECH_KEYWORDS = [
   'software',
@@ -63,11 +65,17 @@ function matchKeyword(text, keyword) {
   return text.toLowerCase().includes(root);
 }
 
-function formatPncpDate(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}${m}${d}`;
+function parseYmdDate(dateStr) {
+  if (!dateStr) return null;
+  const clean = dateStr.replace(/-/g, '');
+  if (clean.length === 8) {
+    const y = parseInt(clean.substring(0, 4), 10);
+    const m = parseInt(clean.substring(4, 6), 10) - 1;
+    const d = parseInt(clean.substring(6, 8), 10);
+    return new Date(y, m, d);
+  }
+  const parsed = new Date(dateStr);
+  return isNaN(parsed.getTime()) ? null : parsed;
 }
 
 export async function GET(request) {
@@ -82,11 +90,11 @@ export async function GET(request) {
   const pagina = parseInt(searchParams.get('pagina') || '1', 10);
   const tamanhoPagina = Math.min(Math.max(parseInt(searchParams.get('tamanhoPagina') || '20', 10), 10), 50);
   
-  // Modalidades (default standard modalides for technology)
+  // Modalidades
   const modalidadesRaw = searchParams.get('modalidades');
   const modalidades = modalidadesRaw 
     ? modalidadesRaw.split(',').map(m => parseInt(m, 10)) 
-    : [4, 6, 8, 9]; // Concorrência eletrônica, Pregão eletrônico, Dispensa, Inexigibilidade
+    : [4, 6, 8, 9];
 
   // Palavras-chave
   const palavrasChaveParam = searchParams.get('palavrasChave');
@@ -94,142 +102,57 @@ export async function GET(request) {
     ? palavrasChaveParam.split(',').map(k => k.trim().toLowerCase()).filter(Boolean)
     : DEFAULT_TECH_KEYWORDS;
 
-  // Datas padrão (últimos 30 dias se não especificado)
-  let dataInicial = dataInicialParam;
-  let dataFinal = dataFinalParam;
-  
-  if (!dataInicial || !dataFinal) {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(end.getDate() - 30); // 30 dias atrás por padrão para capturar editais úteis
-    
-    if (!dataInicial) dataInicial = formatPncpDate(start);
-    if (!dataFinal) dataFinal = formatPncpDate(end);
+  // Ler a base de dados (Redis em nuvem ou Arquivo JSON Local)
+  const storeData = await readStore();
+  const rawBids = storeData.bids || [];
+
+  // Se a base local estiver vazia, dispara sincronização inicial em background
+  if (rawBids.length === 0 && !storeData.isSyncing) {
+    console.log('[API] Base local vazia. Disparando sincronização inicial em background...');
+    syncWithPncp().catch(e => console.error('Erro na sincronização inicial:', e));
   }
 
-  // Chave de cache para evitar requisições repetidas ao PNCP
-  const cacheKey = `licitacoes:raw:${dataInicial}:${dataFinal}:${uf || 'ALL'}:${modalidades.join('-')}`;
-  let rawBids = cache.get(cacheKey);
+  // Intervalo de datas para filtragem
+  const startDate = parseYmdDate(dataInicialParam);
+  if (startDate) startDate.setHours(0, 0, 0, 0);
 
-  if (!rawBids) {
-    try {
-      const fetchHeaders = {
-        'User-Agent': 'busca-portal/1.0',
-        'Accept': 'application/json',
-      };
+  const endDate = parseYmdDate(dataFinalParam);
+  if (endDate) endDate.setHours(23, 59, 59, 999);
 
-      // 1. Buscar a primeira página (tamanho 50) para cada modalidade sequencialmente com delay
-      const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-      const firstPages = [];
-      for (const modalityId of modalidades) {
-        const queryParams = new URLSearchParams({
-          dataInicial,
-          dataFinal,
-          codigoModalidadeContratacao: modalityId.toString(),
-          pagina: '1',
-          tamanhoPagina: '50',
-        });
-        if (uf) queryParams.append('ufSigla', uf);
-
-        const url = `${PNCP_CONSULTA_BASE}/contratacoes/publicacao?${queryParams.toString()}`;
-        try {
-          const response = await fetch(url, { headers: fetchHeaders });
-          if (!response.ok) {
-            console.error(`PNCP API returned status ${response.status} for modality ${modalityId}`);
-            firstPages.push({ data: [], totalPaginas: 0, failed: true, status: response.status });
-          } else {
-            const json = await response.json();
-            firstPages.push({ ...json, failed: false });
-          }
-        } catch (err) {
-          console.error(`Fetch error for modality ${modalityId}:`, err);
-          firstPages.push({ data: [], totalPaginas: 0, failed: true, status: 500 });
-        }
-        await delay(300);
-      }
-
-      // Se todas as chamadas falharam ou retornaram status de erro (ex: 504 Gateway Timeout)
-      const failures = firstPages.filter(p => p.failed);
-      if (failures.length === firstPages.length && firstPages.length > 0) {
-        const status = failures[0].status || 502;
-        return NextResponse.json({ 
-          error: `O portal do PNCP (governo) está indisponível ou instável no momento (Erro ${status}). Por favor, tente novamente em alguns instantes.` 
-        }, { status: 502 });
-      }
-      
-      // 2. Para cada modalidade, verificar se há mais páginas e buscar sequencialmente com delay (até a página 3)
-      const secondaryPages = [];
-      for (let index = 0; index < firstPages.length; index++) {
-        const firstPageJson = firstPages[index];
-        if (firstPageJson.failed) continue;
-
-        const modalityId = modalidades[index];
-        const totalPaginas = firstPageJson.totalPaginas || 1;
-        const maxPagesToFetch = Math.min(totalPaginas, 3); // Limite reduzido de 6 para 3 para reduzir chances de 429
-        
-        for (let p = 2; p <= maxPagesToFetch; p++) {
-          const queryParams = new URLSearchParams({
-            dataInicial,
-            dataFinal,
-            codigoModalidadeContratacao: modalityId.toString(),
-            pagina: p.toString(),
-            tamanhoPagina: '50',
-          });
-          if (uf) queryParams.append('ufSigla', uf);
-
-          const url = `${PNCP_CONSULTA_BASE}/contratacoes/publicacao?${queryParams.toString()}`;
-          try {
-            await delay(400);
-            const res = await fetch(url, { headers: fetchHeaders });
-            if (res.ok) {
-              const json = await res.json();
-              secondaryPages.push(json);
-            } else {
-              console.error(`PNCP API returned status ${res.status} for page ${p} of modality ${modalityId}`);
-            }
-          } catch (e) {
-            console.error(`Error fetching page ${p} for modality ${modalityId}:`, e);
-          }
-        }
-      }
-      
-      // 3. Juntar todos os resultados
-      const allBids = [
-        ...firstPages.flatMap(p => p.data || []),
-        ...secondaryPages.flatMap(p => p.data || [])
-      ];
-
-      // Remover duplicatas por numeroControlePNCP
-      const uniqueBidsMap = new Map();
-      allBids.forEach(bid => {
-        if (bid && bid.numeroControlePNCP) {
-          uniqueBidsMap.set(bid.numeroControlePNCP, bid);
-        }
-      });
-      rawBids = Array.from(uniqueBidsMap.values());
-      
-      // Armazena no cache por 5 minutos
-      cache.set(cacheKey, rawBids, 300);
-    } catch (error) {
-      console.error('Erro ao buscar do PNCP:', error);
-      return NextResponse.json({ error: 'Erro ao buscar dados do PNCP: ' + error.message }, { status: 500 });
-    }
-  }
-
-  // Filtragem local
+  // Helper para limpar links e texto
   const cleanText = (text) => {
     if (!text) return '';
-    // Remove links para evitar falsos positivos
     return text.replace(/https?:\/\/\S+/gi, ' ');
   };
 
+  // Filtragem estritamente LOCAL sobre a base salva
   const filteredBids = rawBids.filter(bid => {
-    // Filtro de Valor
+    // 1. Filtro de Modalidade
+    if (modalidades.length > 0 && !modalidades.includes(bid.modalidadeId)) {
+      return false;
+    }
+
+    // 2. Filtro de UF
+    if (uf && uf !== 'TODOS') {
+      const bidUf = bid.unidadeOrgao?.ufSigla?.toUpperCase();
+      if (bidUf !== uf) return false;
+    }
+
+    // 3. Filtro de Data (Publicação PNCP)
+    if (startDate || endDate) {
+      const pubDate = bid.dataPublicacaoPncp ? new Date(bid.dataPublicacaoPncp) : null;
+      if (pubDate && !isNaN(pubDate.getTime())) {
+        if (startDate && pubDate < startDate) return false;
+        if (endDate && pubDate > endDate) return false;
+      }
+    }
+
+    // 4. Filtro de Valor
     const valor = bid.valorTotalEstimado ?? bid.valorTotalHomologado ?? 0;
     if (valorMinimo !== null && valor < valorMinimo) return false;
     if (valorMaximo !== null && valor > valorMaximo) return false;
 
-    // Filtro de Exclusões (Palavras Negativas)
+    // 5. Filtro de Exclusões (Palavras Negativas)
     const objeto = cleanText(bid.objetoCompra).toLowerCase();
     const info = cleanText(bid.informacaoComplementar).toLowerCase();
     
@@ -238,7 +161,7 @@ export async function GET(request) {
     );
     if (hasExclusion) return false;
 
-    // Filtro de Palavra-chave
+    // 6. Filtro de Palavras-Chave de TI
     const hasMatch = keywords.some(keyword => 
       matchKeyword(objeto, keyword) || 
       matchKeyword(info, keyword)
@@ -247,14 +170,13 @@ export async function GET(request) {
     return hasMatch;
   });
 
-  // Ordenar e classificar por IA se o toggle estiver ativo e a API key configurada
+  // Classificação opcional por IA (Gemini) se solicitada pelo frontend
   let aiFilteredBids = filteredBids;
   const filtrarPorIA = searchParams.get('filtrarPorIA') === 'true';
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
   if (filtrarPorIA && apiKey && filteredBids.length > 0) {
     try {
-      // Preparar os itens pré-filtrados de forma leve para o prompt
       const itemsToClassify = filteredBids.map((bid, index) => ({
         index,
         objeto: cleanText(bid.objetoCompra).substring(0, 500),
@@ -273,11 +195,11 @@ Critérios de inclusão (TI):
 - Links de internet dedicada, serviços de conectividade ou telefonia IP/VoIP.
 
 Critérios de exclusão (Não é TI):
-- Shows artísticos, palcos, apresentações artísticas, bandas de música ou eventos festivos (mesmo se disser que foram pesquisados na internet).
-- Locação de prédios, salas, casas ou imóveis comerciais (mesmo se o prédio for abrigar um departamento de TI).
-- Obras civis, reformas, construção, pavimentação, cimento, concreto, esgoto ou encanamento (mesmo se chamarem de "implantação de sistema de esgoto").
-- Equipamentos elétricos gerais (ar condicionado, geradores de energia comuns, lâmpadas, iluminação pública) ou projetos fotovoltaicos de painéis solares (mesmo se citarem "rede municipal" ou "sistema elétrico").
-- Cursos, treinamentos, MBAs ou consultorias administrativas que não sejam específicas do uso ou aprendizagem direta de um software ou linguagem de programação.
+- Shows artísticos, palcos, apresentações artísticas, bandas de música ou eventos festivos.
+- Locação de prédios, salas, casas ou imóveis comerciais.
+- Obras civis, reformas, construção, pavimentação, cimento, concreto, esgoto ou encanamento.
+- Equipamentos elétricos gerais (ar condicionado, geradores) ou projetos fotovoltaicos de painéis solares.
+- Cursos ou treinamentos administrativos gerais.
 
 Itens para classificar:
 ${JSON.stringify(itemsToClassify, null, 2)}
@@ -285,8 +207,7 @@ ${JSON.stringify(itemsToClassify, null, 2)}
 Responda estritamente em formato JSON estruturado com o seguinte schema exato:
 {
   "classificacoes": [
-    { "index": 0, "isTI": true },
-    { "index": 1, "isTI": false }
+    { "index": 0, "isTI": true }
   ]
 }
 `;
@@ -306,43 +227,43 @@ Responda estritamente em formato JSON estruturado com o seguinte schema exato:
           const text = responseJson.candidates[0].content.parts[0].text;
           const parsed = JSON.parse(text);
           if (parsed && Array.isArray(parsed.classificacoes)) {
-            // Filtrar as licitações com base no retorno da IA
             aiFilteredBids = filteredBids.filter((bid, index) => {
               const classification = parsed.classificacoes.find(c => c.index === index);
-              return classification ? classification.isTI : true; // Fallback para true caso não encontre
+              return classification ? classification.isTI : true;
             });
-            console.log(`IA classificou ${filteredBids.length} itens. Mantidos pós-IA: ${aiFilteredBids.length}`);
           }
         }
-      } else {
-        console.warn('Erro ao chamar a API do Gemini. Status:', response.status);
       }
     } catch (aiError) {
-      console.error('Erro na classificação por IA (fallback para RegExp ativo):', aiError);
+      console.error('Erro na classificação por IA (fallback para base local ativo):', aiError);
     }
   }
 
-  // Ordenar mais recentes primeiro
+  // Ordenar os mais recentes primeiro
   const sortedBids = aiFilteredBids.sort((a, b) => {
     const dateA = new Date(a.dataPublicacaoPncp || 0);
     const dateB = new Date(b.dataPublicacaoPncp || 0);
     return dateB - dateA;
   });
 
-  // Paginar os resultados filtrados localmente
+  // Paginação dos resultados locais
   const totalEncontrados = sortedBids.length;
   const startIndex = (pagina - 1) * tamanhoPagina;
   const paginatedBids = sortedBids.slice(startIndex, startIndex + tamanhoPagina);
 
   return NextResponse.json({
     meta: {
-      dataInicial,
-      dataFinal,
+      dataInicial: dataInicialParam,
+      dataFinal: dataFinalParam,
       uf: uf || 'Todos',
       modalidades,
       palavrasChaveUtilizadas: keywords,
       totalEncontrados: totalEncontrados,
-      totalAntesFiltros: rawBids.length,
+      totalSalvosLocal: storeData.totalBids,
+      lastSync: storeData.lastSync,
+      lastSyncStatus: storeData.lastSyncStatus,
+      lastSyncMessage: storeData.lastSyncMessage,
+      isSyncing: storeData.isSyncing,
       pagina,
       tamanhoPagina,
       totalPaginas: Math.ceil(totalEncontrados / tamanhoPagina)
