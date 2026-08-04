@@ -879,7 +879,7 @@ export default function Home() {
 
         {/* RENDER LIST OF TENDERS */}
         {(activeTab === 'buscar' || activeTab === 'favoritos') && (
-          <section style={{ marginTop: '30px' }} className="animate-fade-in">
+          <section className="tenders-section animate-fade-in">
             {loading ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '300px', gap: '15px' }}>
                 <div style={{ width: '40px', height: '40px', border: '4px solid rgba(16, 185, 129, 0.1)', borderTopColor: 'var(--color-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
@@ -910,8 +910,9 @@ export default function Home() {
                 </p>
               </div>
             ) : (
-              <div className="glass-panel" style={{ overflowX: 'auto', padding: '10px 20px' }}>
-                <table className="custom-table">
+              <div className="tenders-glass-panel">
+                <div className="table-scroll-container">
+                  <table className="custom-table">
                   <thead>
                     <tr>
                       <th style={{ width: '40px' }}></th>
@@ -1072,71 +1073,63 @@ export default function Home() {
                     })}
                   </tbody>
                 </table>
+              </div>
 
-                {/* PAGINATION CONTROLS */}
-                {activeTab === 'buscar' && totalPaginasCalculado > 1 && (
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: '15px',
-                    padding: '18px 10px 10px 10px',
-                    borderTop: '1px solid var(--border-color)',
-                    marginTop: '10px'
-                  }}>
-                    {/* Left Info */}
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      Exibindo <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{((paginaAtualAjustada - 1) * tamanhoPagina) + 1}</span> a <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{Math.min(paginaAtualAjustada * tamanhoPagina, processedBids.length)}</span> de <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{processedBids.length}</span> editais
+              {/* PAGINATION CONTROLS */}
+              {activeTab === 'buscar' && totalPaginasCalculado > 1 && (
+                <div className="pagination-bar">
+                  {/* Left Info */}
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    Exibindo <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{((paginaAtualAjustada - 1) * tamanhoPagina) + 1}</span> a <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{Math.min(paginaAtualAjustada * tamanhoPagina, processedBids.length)}</span> de <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{processedBids.length}</span> editais
+                  </div>
+
+                  {/* Items Per Page Selector & Page Buttons */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                      <span>Itens por página:</span>
+                      <select
+                        value={tamanhoPagina}
+                        onChange={(e) => {
+                          setTamanhoPagina(Number(e.target.value));
+                          setPagina(1);
+                        }}
+                        className="glass-input"
+                        style={{ padding: '4px 8px', fontSize: '0.8rem', width: 'auto', appearance: 'none', cursor: 'pointer' }}
+                      >
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
                     </div>
 
-                    {/* Items Per Page Selector & Page Buttons */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                        <span>Itens por página:</span>
-                        <select
-                          value={tamanhoPagina}
-                          onChange={(e) => {
-                            setTamanhoPagina(Number(e.target.value));
-                            setPagina(1);
-                          }}
-                          className="glass-input"
-                          style={{ padding: '4px 8px', fontSize: '0.8rem', width: 'auto', appearance: 'none', cursor: 'pointer' }}
-                        >
-                          <option value={20}>20</option>
-                          <option value={50}>50</option>
-                          <option value={100}>100</option>
-                        </select>
-                      </div>
+                    {/* Pagination Buttons */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        onClick={() => setPagina(p => Math.max(p - 1, 1))}
+                        disabled={paginaAtualAjustada === 1}
+                        className="btn-secondary"
+                        style={{ padding: '6px 14px', fontSize: '0.82rem', opacity: paginaAtualAjustada === 1 ? 0.4 : 1, cursor: paginaAtualAjustada === 1 ? 'not-allowed' : 'pointer' }}
+                      >
+                        ← Anterior
+                      </button>
 
-                      {/* Pagination Buttons */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <button
-                          onClick={() => setPagina(p => Math.max(p - 1, 1))}
-                          disabled={paginaAtualAjustada === 1}
-                          className="btn-secondary"
-                          style={{ padding: '6px 14px', fontSize: '0.82rem', opacity: paginaAtualAjustada === 1 ? 0.4 : 1, cursor: paginaAtualAjustada === 1 ? 'not-allowed' : 'pointer' }}
-                        >
-                          ← Anterior
-                        </button>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600, padding: '0 8px' }}>
+                        Página {paginaAtualAjustada} de {totalPaginasCalculado}
+                      </span>
 
-                        <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600, padding: '0 8px' }}>
-                          Página {paginaAtualAjustada} de {totalPaginasCalculado}
-                        </span>
-
-                        <button
-                          onClick={() => setPagina(p => Math.min(p + 1, totalPaginasCalculado))}
-                          disabled={paginaAtualAjustada >= totalPaginasCalculado}
-                          className="btn-secondary"
-                          style={{ padding: '6px 14px', fontSize: '0.82rem', opacity: paginaAtualAjustada >= totalPaginasCalculado ? 0.4 : 1, cursor: paginaAtualAjustada >= totalPaginasCalculado ? 'not-allowed' : 'pointer' }}
-                        >
-                          Próxima →
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => setPagina(p => Math.min(p + 1, totalPaginasCalculado))}
+                        disabled={paginaAtualAjustada >= totalPaginasCalculado}
+                        className="btn-secondary"
+                        style={{ padding: '6px 14px', fontSize: '0.82rem', opacity: paginaAtualAjustada >= totalPaginasCalculado ? 0.4 : 1, cursor: paginaAtualAjustada >= totalPaginasCalculado ? 'not-allowed' : 'pointer' }}
+                      >
+                        Próxima →
+                      </button>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+            </div>
             )}
           </section>
         )}
