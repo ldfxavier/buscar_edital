@@ -213,59 +213,54 @@ body {
   animation: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Layout Containers */
+/* Layout Containers - Global Page Scroll */
 .dashboard-grid {
   display: grid;
   grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+  align-items: start;
+}
+
+aside.sidebar-panel {
+  position: sticky;
+  top: 0;
   height: 100vh;
   max-height: 100vh;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .main-content {
-  padding: 24px 30px;
-  overflow: hidden;
-  height: 100vh;
-  max-height: 100vh;
+  padding: 30px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 25px;
+  min-height: 100vh;
 }
 
 .tenders-section {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0;
 }
 
 .tenders-glass-panel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
   border-radius: 14px;
-  overflow: hidden;
   border: 1px solid var(--border-color);
   background: var(--bg-card);
+  overflow: hidden;
 }
 
 .table-scroll-container {
-  flex: 1;
-  overflow-y: auto;
   overflow-x: auto;
-  min-height: 0;
   padding: 0 20px;
 }
 
 .pagination-bar {
-  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
   gap: 15px;
-  padding: 14px 20px;
+  padding: 18px 20px;
   border-top: 1px solid var(--border-color);
   background: #161b22;
 }
@@ -273,22 +268,14 @@ body {
 @media (max-width: 1024px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
+  }
+  aside.sidebar-panel {
+    position: static;
     height: auto;
     max-height: none;
-    overflow: visible;
   }
   .main-content {
-    height: auto;
-    max-height: none;
-    overflow-y: visible;
     padding: 20px;
-  }
-  .tenders-section,
-  .tenders-glass-panel,
-  .table-scroll-container {
-    height: auto;
-    min-height: auto;
-    overflow: visible;
   }
 }
 

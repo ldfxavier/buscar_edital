@@ -524,7 +524,7 @@ export default function Home() {
     <div className="dashboard-grid">
 
       {/* 1. SIDEBAR NAVIGATION */}
-      <aside className="glass-panel" style={{ borderRadius: '0', borderLeft: 'none', borderTop: 'none', borderBottom: 'none', padding: '30px 20px', display: 'flex', flexDirection: 'column', gap: '30px' }}>
+      <aside className="glass-panel sidebar-panel" style={{ borderRadius: '0', borderLeft: 'none', borderTop: 'none', borderBottom: 'none', padding: '30px 20px', display: 'flex', flexDirection: 'column', gap: '30px' }}>
         <div>
           <h1 className="display-title" style={{ fontSize: '1.7rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{
