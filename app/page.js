@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 const DEFAULT_TECH_KEYWORDS = [
   'software',
@@ -307,6 +307,45 @@ export default function Home() {
     localStorage.setItem('licitatech_favorites', JSON.stringify(updated));
   };
 
+  // Ref para rastrear o estado atual do selectedBid nos ouvintes de eventos globais
+  const selectedBidRef = useRef(selectedBid);
+  useEffect(() => {
+    selectedBidRef.current = selectedBid;
+  }, [selectedBid]);
+
+  const closeBidDetails = (shouldPopHistory = true) => {
+    if (shouldPopHistory && typeof window !== 'undefined' && window.history.state?.modalOpen) {
+      window.history.back();
+    }
+    setSelectedBid(null);
+    setBidDetails(null);
+    setOrganDetails(null);
+    setDetailError(null);
+  };
+
+  // Intercepta a navegação do botão Voltar do navegador e a tecla ESC para fechar o modal
+  useEffect(() => {
+    const handlePopState = () => {
+      if (selectedBidRef.current) {
+        // Modal estava aberto: fecha o modal e evita que o navegador volte a página anterior
+        closeBidDetails(false);
+      }
+    };
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && selectedBidRef.current) {
+        closeBidDetails(true);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
   // Fetch Tender Details & Organ Data
   const openBidDetails = async (bid) => {
     setSelectedBid(bid);
@@ -314,6 +353,11 @@ export default function Home() {
     setDetailError(null);
     setBidDetails(null);
     setOrganDetails(null);
+
+    // Empurra um estado no histórico do navegador para capturar o botão voltar
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ modalOpen: true }, '');
+    }
 
     try {
       // 1. Fetch details, items, files from PNCP API proxy
@@ -343,13 +387,6 @@ export default function Home() {
       setDetailLoading(false);
       setOrganLoading(false);
     }
-  };
-
-  const closeBidDetails = () => {
-    setSelectedBid(null);
-    setBidDetails(null);
-    setOrganDetails(null);
-    setDetailError(null);
   };
 
   // Modality checkboxes handler
@@ -387,7 +424,7 @@ export default function Home() {
     // 1. Filtragem local por busca de colunas
     if (colFilterObjeto.trim()) {
       const q = colFilterObjeto.toLowerCase();
-      list = list.filter(b => 
+      list = list.filter(b =>
         (b.objetoCompra && b.objetoCompra.toLowerCase().includes(q)) ||
         (b.numeroControlePNCP && b.numeroControlePNCP.toLowerCase().includes(q))
       );
@@ -878,31 +915,31 @@ export default function Home() {
                   <thead>
                     <tr>
                       <th style={{ width: '40px' }}></th>
-                      <th 
-                        className="sort-header-clickable" 
+                      <th
+                        className="sort-header-clickable"
                         onClick={() => setSortOrder(prev => prev === 'objetoAsc' ? 'objetoDesc' : 'objetoAsc')}
                         title="Clique para ordenar por Objeto"
                       >
                         OBJETO DA COMPRA {sortOrder === 'objetoAsc' ? '▲' : sortOrder === 'objetoDesc' ? '▼' : ''}
                       </th>
-                      <th 
-                        className="sort-header-clickable" 
+                      <th
+                        className="sort-header-clickable"
                         style={{ width: '180px' }}
                         onClick={() => setSortOrder(prev => prev === 'orgaoAsc' ? 'orgaoDesc' : 'orgaoAsc')}
                         title="Clique para ordenar por Órgão"
                       >
                         ÓRGÃO COMPRADOR {sortOrder === 'orgaoAsc' ? '▲' : sortOrder === 'orgaoDesc' ? '▼' : ''}
                       </th>
-                      <th 
-                        className="sort-header-clickable" 
+                      <th
+                        className="sort-header-clickable"
                         style={{ width: '130px' }}
                         onClick={() => setSortOrder(prev => prev === 'valorDesc' ? 'valorAsc' : 'valorDesc')}
                         title="Clique para ordenar por Valor Estimado"
                       >
                         VALOR ESTIMADO {sortOrder === 'valorDesc' ? '▼' : sortOrder === 'valorAsc' ? '▲' : ''}
                       </th>
-                      <th 
-                        className="sort-header-clickable" 
+                      <th
+                        className="sort-header-clickable"
                         style={{ width: '130px' }}
                         onClick={() => setSortOrder(prev => prev === 'dataAberturaAsc' ? 'dataAberturaDesc' : 'dataAberturaAsc')}
                         title="Clique para ordenar por Data de Abertura"
