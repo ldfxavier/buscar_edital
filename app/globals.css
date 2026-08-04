@@ -532,3 +532,43 @@ input:checked + .slider:before {
   color: #e6edf3;
   padding: 6px;
 }
+
+/* Card Highlight for Software Development / Web Bids */
+.custom-table tbody tr.row-highlight-software td {
+  background: linear-gradient(135deg, #064e3b 0%, #022c22 100%) !important;
+  border-top: 1px solid #10b981 !important;
+  border-bottom: 1px solid #10b981 !important;
+  box-shadow: inset 0 0 15px rgba(16, 185, 129, 0.25);
+}
+
+.custom-table tbody tr.row-highlight-software td:first-child {
+  border-left: 4px solid #34d399 !important;
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.custom-table tbody tr.row-highlight-software td:last-child {
+  border-right: 1px solid #10b981 !important;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.custom-table tbody tr.row-highlight-software:hover td {
+  background: linear-gradient(135deg, #047857 0%, #064e3b 100%) !important;
+  border-color: #34d399 !important;
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.45), inset 0 0 15px rgba(52, 211, 153, 0.3) !important;
+}
+
+.badge-dev-software {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  font-weight: 700;
+  border: 1px solid #34d399;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+

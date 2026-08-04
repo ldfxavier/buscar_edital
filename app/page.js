@@ -39,6 +39,31 @@ const MODALIDADE_NAMES = {
   13: 'Cotação Eletrônica'
 };
 
+const SOFTWARE_DEV_KEYWORDS = [
+  'desenvolvimento de software', 'desenvolvimento de sistema', 'desenvolvimento de sistemas',
+  'desenvolvimento web', 'desenvolvimento de portal', 'desenvolvimento de aplicativo',
+  'desenvolvimento de app', 'fábrica de software', 'fabrica de software',
+  'criação de portal', 'criacao de portal', 'criação de site', 'criacao de site',
+  'software sob demanda', 'sistema sob demanda', 'desenvolvimento de plataforma',
+  'plataforma digital', 'gestão documental', 'plataforma web'
+];
+
+const SOFTWARE_DEV_EXCLUDE = [
+  'antivírus', 'antivirus', 'kaspersky', 'symantec', 'mcafee', 'fortinet',
+  'resíduos', 'residuos', 'pavimentação', 'paralelepípedos', 'veículos', 'veiculos',
+  'médico', 'medico', 'exames', 'marmitex', 'livros', 'fisioterapia', 'asfáltico', 'asfaltico',
+  'obra', 'reforma', 'construção de praça', 'leilão', 'leilao', 'iluminação pública', 'equoterapia'
+];
+
+export const isSoftwareDevBid = (bid) => {
+  if (!bid) return false;
+  const text = ((bid.objetoCompra || '') + ' ' + (bid.informacaoComplementar || '')).toLowerCase();
+  if (SOFTWARE_DEV_EXCLUDE.some(ex => text.includes(ex))) {
+    return false;
+  }
+  return SOFTWARE_DEV_KEYWORDS.some(kw => text.includes(kw));
+};
+
 export default function Home() {
   // Navigation
   const [activeTab, setActiveTab] = useState('buscar'); // 'buscar' | 'favoritos' | 'config'
@@ -57,6 +82,7 @@ export default function Home() {
   const [favorites, setFavorites] = useState([]);
   const [filtrarPorIA, setFiltrarPorIA] = useState(false);
   const [ignorarPalavrasChave, setIgnorarPalavrasChave] = useState(false);
+  const [destacarDevSoftware, setDestacarDevSoftware] = useState(true);
 
   // Sync / Base Local States
   const [syncMeta, setSyncMeta] = useState(null);
@@ -175,6 +201,12 @@ export default function Home() {
     const savedIgnorar = localStorage.getItem('xmcode_ignorar_keywords');
     if (savedIgnorar) {
       setIgnorarPalavrasChave(savedIgnorar === 'true');
+    }
+
+    // Load destacar dev software preference from localStorage
+    const savedDestacarDev = localStorage.getItem('xmcode_destacar_dev_software');
+    if (savedDestacarDev) {
+      setDestacarDevSoftware(savedDestacarDev === 'true');
     }
   }, []);
 
@@ -521,6 +553,28 @@ export default function Home() {
               type="checkbox"
               checked={ignorarPalavrasChave}
               onChange={(e) => handleIgnorarKeywordsToggle(e.target.checked)}
+            />
+            <span className="slider"></span>
+          </label>
+        </div>
+
+        {/* Destaque Dev Software Toggle Switch */}
+        <div className="switch-container" style={{ borderColor: destacarDevSoftware ? 'rgba(16, 185, 129, 0.45)' : '#30363d', background: destacarDevSoftware ? 'rgba(16, 185, 129, 0.08)' : '#161b22' }}>
+          <div className="switch-label">
+            <span className="switch-title" style={{ color: destacarDevSoftware ? '#34d399' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              🚀 Alerta Dev Software
+            </span>
+            <span className="switch-desc">Destaque total de cards Dev/Web</span>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={destacarDevSoftware}
+              onChange={(e) => {
+                const val = e.target.checked;
+                setDestacarDevSoftware(val);
+                localStorage.setItem('xmcode_destacar_dev_software', val.toString());
+              }}
             />
             <span className="slider"></span>
           </label>
@@ -922,10 +976,12 @@ export default function Home() {
                     {displayBids.map(bid => {
                       const isFav = favorites.some(f => f.numeroControlePNCP === bid.numeroControlePNCP);
                       const valor = bid.valorTotalEstimado ?? bid.valorTotalHomologado;
+                      const isDev = destacarDevSoftware && isSoftwareDevBid(bid);
                       return (
                         <tr
                           key={bid.numeroControlePNCP}
                           onClick={() => openBidDetails(bid)}
+                          className={isDev ? 'row-highlight-software' : ''}
                           style={{ cursor: 'pointer' }}
                         >
                           <td onClick={(e) => toggleFavorite(bid, e)}>
@@ -945,11 +1001,11 @@ export default function Home() {
                             <div style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '4px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                               {bid.objetoCompra}
                             </div>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Controle: {bid.numeroControlePNCP}</span>
+                            <span style={{ fontSize: '0.75rem', color: isDev ? '#a7f3d0' : 'var(--text-muted)' }}>Controle: {bid.numeroControlePNCP}</span>
                           </td>
                           <td>
                             <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>{bid.orgaoEntidade?.razaoSocial}</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{bid.unidadeOrgao?.municipioNome} - {bid.unidadeOrgao?.ufSigla}</div>
+                            <div style={{ fontSize: '0.75rem', color: isDev ? '#a7f3d0' : 'var(--text-muted)' }}>{bid.unidadeOrgao?.municipioNome} - {bid.unidadeOrgao?.ufSigla}</div>
                           </td>
                           <td>
                             <span style={{ fontWeight: 600, color: valor != null ? 'var(--text-primary)' : 'var(--text-muted)', fontSize: '0.9rem' }}>
@@ -961,6 +1017,11 @@ export default function Home() {
                           </td>
                           <td>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              {isDev && (
+                                <span className="badge badge-dev-software">
+                                  🚀 DEV SOFTWARE / WEB
+                                </span>
+                              )}
                               <span className="badge badge-cyan" style={{ fontSize: '0.7rem' }}>
                                 {bid.modalidadeNome?.split(' ')[0] || 'Outra'}
                               </span>
